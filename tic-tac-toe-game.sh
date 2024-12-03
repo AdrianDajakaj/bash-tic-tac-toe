@@ -1,11 +1,16 @@
-declare -A game_board
+declare -A game_board row_count col_count diag_count anti_diag_count
+declare -i board_size=3
+
 possible_moves=()
 players_symbols=()
 selected_save=""
 current_player=""
 current_turn=""
+winner=""
+is_win=false
 
 game_board_init(){
+    is_win=false
     possible_moves=( "A1" "A2" "A3" "B1" "B2" "B3" "C1" "C2" "C3" )
     for i in {0..2}; do
         for j in {0..2}; do
@@ -13,6 +18,18 @@ game_board_init(){
         done
     done
 }
+
+counts_init() {
+    for symbol in "X" "O"; do
+        for j in {0..2}; do
+            row_count["$symbol,$j"]=0
+            col_count["$symbol,$j"]=0
+        done
+        diag_count["$symbol"]=0
+        anti_diag_count["$symbol"]=0
+    done
+}
+
 
 game_board_print(){
     for i in {0..2}; do
@@ -153,8 +170,8 @@ symbol_chooser(){
             echo "Invalid choice. Please choose either 'O' or 'X'."
         fi
     done
-    echo "Player 1's symbol is ${players_symbols[0]}."
-    echo "Player 2's symbol is ${players_symbols[1]}."
+    echo "Player 1's symbol: ${players_symbols[0]}."
+    echo "Player 2's symbol: ${players_symbols[1]}."
 }
 
 remove_used_move() {
@@ -171,8 +188,37 @@ remove_used_move() {
     fi
 }
 
+get_player_by_symbol(){
+    local symbol=$1
+    for i in "${!players_symbols[@]}"; do
+        if [[ "${players_symbols[i]}" == "$symbol" ]]; then
+            winner="$((i+1))"
+        fi
+    done
+}
 
-player_move(){
+win_checker() {
+    local row=$1
+    local col=$2
+    local player_symbol=$3
+    (( row_count["$player_symbol,$row"]++ ))
+    (( col_count["$player_symbol,$col"]++ ))
+    if (( row == col )); then
+        (( diag_count["$player_symbol"]++ ))
+    fi
+    if (( row + col == board_size - 1 )); then
+        (( anti_diag_count["$player_symbol"]++ ))
+    fi
+     echo ${diag_count["$player_symbol,$row"]}
+    if (( row_count["$player_symbol,$row"] == board_size || col_count["$player_symbol,$col"] == board_size || diag_count["$player_symbol"] == board_size || anti_diag_count["$player_symbol"] == board_size )); then
+        is_win=true
+    else
+        is_win=false
+    fi
+}
+
+
+player_move() {
     local player=$1
     local move
     local row col
@@ -187,6 +233,16 @@ player_move(){
             if [[ ${game_board[$row,$col]} == "." ]]; then
                 game_board[$row,$col]=${players_symbols[$((player-1))]}
                 remove_used_move "$move"
+                win_checker "$row" "$col" "${players_symbols[$((player-1))]}"
+                game_board_print
+                if [[ $is_win == true ]]; then
+                    echo "Player $player (${players_symbols[$((player-1))]}) wins!"
+                    # exit 0
+                fi
+                if [[ $is_win == false && ${#possible_moves[@]} -eq 0 ]]; then
+                    echo Draw! Nobody wins!
+                    # exit 0 
+                fi
                 break
             else
                 echo "This position is already taken. Try again."
@@ -199,6 +255,31 @@ player_move(){
 
 
 
+
+
 game_board_init
+
 symbol_chooser
+
+player_move "1"
+
+player_move "2"
+
+player_move "1"
+
+player_move "2"
+
+player_move "1"
+
+player_move "2"
+player_move "1"
+player_move "2"
+player_move "1"
+player_move "2"
+player_move "1"
+
+# symbol_chooser
+# game_board_checker
+# get_player_by_symbol "X"
+# echo $current_player
 
