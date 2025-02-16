@@ -78,13 +78,13 @@ Use 'S' during gameplay to save.
 ## AI Implementation
 The singleplayer AI uses:
 
-Minimax algorithm for optimal decision making
+- Minimax algorithm for optimal decision making
 
-Recursive score calculation
+- Recursive score calculation
 
-Depth-limited search (due to Bash limitations)
+- Depth-limited search (due to Bash limitations)
 
-Fallback to random moves if Minimax fails
+- Fallback to random moves if Minimax fails
 
 ## Game Controls
 During gameplay:
