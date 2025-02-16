@@ -8,7 +8,6 @@ game_mode=""
 current_player=""
 current_turn=""
 winner=""
-is_win=false
 game_status=""
 
 game_board_init(){
@@ -31,7 +30,6 @@ counts_init() {
         anti_diag_count["$symbol"]=0
     done
 }
-
 
 game_board_print(){
     for i in {0..2}; do
@@ -214,8 +212,13 @@ symbol_chooser(){
             echo "Invalid choice. Please choose either 'O' or 'X'."
         fi
     done
-    echo "Player 1's symbol: ${players_symbols[0]}."
-    echo "Player 2's symbol: ${players_symbols[1]}."
+    if [[ "$game_mode" == "singleplayer" ]]; then
+        echo "Player 1's symbol: ${players_symbols[0]}."
+        echo "Computer's symbol: ${players_symbols[1]}."
+    else
+        echo "Player 1's symbol: ${players_symbols[0]}."
+        echo "Player 2's symbol: ${players_symbols[1]}."
+    fi
 }
 
 remove_used_move() {
@@ -245,25 +248,32 @@ win_checker() {
     local player_symbol=$1
     for row in 0 1 2; do
         if [[ ${game_board["$row,0"]} == "$player_symbol" && ${game_board["$row,1"]} == "$player_symbol" && ${game_board["$row,2"]} == "$player_symbol" ]]; then
-            is_win=true
-            return
+            return 0
         fi
     done
     for col in 0 1 2; do
         if [[ ${game_board["0,$col"]} == "$player_symbol" && ${game_board["1,$col"]} == "$player_symbol" && ${game_board["2,$col"]} == "$player_symbol" ]]; then
-            is_win=true
-            return
+            return 0
         fi
     done
     if [[ ${game_board["0,0"]} == "$player_symbol" && ${game_board["1,1"]} == "$player_symbol" && ${game_board["2,2"]} == "$player_symbol" ]]; then
-        is_win=true
-        return
+        return 0
     fi
     if [[ ${game_board["0,2"]} == "$player_symbol" && ${game_board["1,1"]} == "$player_symbol" && ${game_board["2,0"]} == "$player_symbol" ]]; then
-        is_win=true
-        return
+        return 0
     fi
-    is_win=false
+    return 1
+}
+
+is_board_completed(){
+    for i in {0..2}; do
+        for j in {0..2}; do
+            if [[ ${game_board["$i,$j"]} == "." ]]; then
+                return 1
+            fi
+        done
+    done
+    return 0
 }
 
 player_move() {
@@ -296,19 +306,19 @@ player_move() {
             if [[ ${game_board[$row,$col]} == "." ]]; then
                 game_board[$row,$col]=${players_symbols[$((player-1))]}
                 remove_used_move "$move"
-                win_checker "${players_symbols[$((player-1))]}"
 
-                if [[ $is_win == true ]]; then
+                if win_checker "${players_symbols[$((player-1))]}"; then
                     game_board_print
                     echo "Player $player (${players_symbols[$((player-1))]}) wins!"
                     game_status="win"
                     break
-                fi
-                if [[ $is_win == false && ${#possible_moves[@]} -eq 0 ]]; then
-                    game_board_print
-                    echo "Draw! Nobody wins!"
-                    game_status="draw"
-                    break
+                else
+                    if [[ ${#possible_moves[@]} -eq 0 ]]; then
+                        game_board_print
+                        echo "Draw! Nobody wins!"
+                        game_status="draw"
+                        break
+                    fi
                 fi
                 break
             else
@@ -320,22 +330,84 @@ player_move() {
     done
 }
 
-evaluate_board() {
-    win_checker "${players_symbols[1]}"
-    if [[ $is_win == true ]]; then
-        echo "computer"
+minimax(){
+    local depth=$1
+    local is_maximizing=$2
+    local a=10000
+    local b=-10000
+    local best_score
+    local score
+    if win_checker "${players_symbols[1]}"; then
+        echo $a
+        return
+    elif win_checker "${players_symbols[0]}"; then
+        echo $b
+        return
+    elif is_board_completed; then
+        echo 0
+        return
     fi
-    win_checker "${players_symbols[0]}"
-    if [[ $is_win == true ]]; then
-        echo "player"
+
+    if [[ $is_maximizing -eq 0 ]]; then
+        best_score=-1000
+        for i in {0..2}; do
+            for j in {0..2}; do
+                if [[ ${game_board["$i,$j"]} == "." ]]; then
+                    game_board["$i,$j"]=${players_symbols[1]}
+                    score=$(minimax $((depth+1)) 1)
+                    game_board["$i,$j"]="."
+                    if [[ $score -gt $best_score ]]; then
+                        best_score=$score
+                    fi
+                fi
+            done
+        done
+        echo $best_score
+    else
+        best_score=1000
+        for i in {0..2}; do
+            for j in {0..2}; do
+                if [[ ${game_board["$i,$j"]} == "." ]]; then
+                    game_board["$i,$j"]=${players_symbols[0]}
+                    score=$(minimax $((depth+1)) 0)
+                    game_board["$i,$j"]="."
+                    if [[ $score -lt $best_score ]]; then
+                        best_score=$score
+                    fi
+                fi
+            done
+        done
+        echo $best_score
     fi
-    if [[ $is_win == false ]]; then
-        if [[ ${#possible_moves[@]} -eq 0 ]]; then
-            echo "draw"
-        else
-            echo "none"
-        fi
+}
+
+best_computer_move(){
+    local best_score=-1000
+    local move=(-1 -1)
+    for row in {0..2}; do
+        for col in {0..2}; do
+            if [[ ${game_board["$row,$col"]} == "." ]]; then
+                game_board["$row,$col"]=${players_symbols[1]}
+                local score=$(minimax 0 1)
+                echo "in progress..."
+                game_board["$row,$col"]="."
+                if [[ $score -ge $best_score ]]; then
+                    best_score=$score
+                    move[0]=$row
+                    move[1]=$col
+                fi
+            fi
+        done
+    done  
+    if ! [[ ${move[0]} -eq -1 && ${move[1]} -eq -1 ]]; then
+        game_board[${move[0]},${move[1]}]=${players_symbols[1]}
+        letters=(A B C)
+        move_literal="${letters[${move[1]}]}$((${move[0]}+1))"
+        remove_used_move "$move_literal"
+        echo "Computer moves to $move_literal!"
+        return 0
     fi
+    return 1
 }
 
 computer_move() {
@@ -343,27 +415,28 @@ computer_move() {
     local row col
     echo "=== Turn: $current_turn ==="
     echo "Current Player: Computer (Symbol: ${players_symbols[$((current_player-1))]})"
-    possible_moves_copy=("${possible_moves[@]}") 
-    random_index=$((RANDOM % ${#possible_moves_copy[@]}))
-    move="${possible_moves_copy[$random_index]}"
-
-    col=$(echo "$move" | cut -c1 | tr 'A-C' '0-2')
-    row=$(echo "$move" | cut -c2-2 | tr '1-3' '0-2')
-    echo "Computer moves to $move..."
-    game_board[$row,$col]=${players_symbols[1]}
-    remove_used_move "$move"
-    win_checker "${players_symbols[1]}"
-
-    if [[ $is_win == true ]]; then
+    echo "Computer thinking..."
+    if ! best_computer_move; then
+        possible_moves_copy=("${possible_moves[@]}") 
+        random_index=$((RANDOM % ${#possible_moves_copy[@]}))
+        move="${possible_moves_copy[$random_index]}"
+        col=$(echo "$move" | cut -c1 | tr 'A-C' '0-2')
+        row=$(echo "$move" | cut -c2-2 | tr '1-3' '0-2')
+        echo "Computer moves to $move..."
+        game_board[$row,$col]=${players_symbols[1]}
+        remove_used_move "$move"
+    fi
+    if  win_checker "${players_symbols[1]}"; then
         game_board_print
         echo "Computer wins!"
         game_status="win"
-    fi
-    if [[ $is_win == false && ${#possible_moves[@]} -eq 0 ]]; then
-        game_board_print
-        echo "Draw! Nobody wins!"
-        game_status="draw"
-    fi
+    else
+        if [[ ${#possible_moves[@]} -eq 0 ]]; then
+            game_board_print
+            echo "Draw! Nobody wins!"
+            game_status="draw"
+        fi
+    fi  
 }
 
 main_menu(){
@@ -377,7 +450,7 @@ main_menu(){
     case $choice in
         1) 
             game_board_init
-            symbol_chooser
+            # symbol_chooser
             current_turn=1
             current_player=1
             game_status="running"
@@ -385,7 +458,7 @@ main_menu(){
             ;;
         2) 
             game_board_init
-            symbol_chooser
+            # symbol_chooser
             current_turn=1
             current_player=1
             game_status="running"
@@ -399,6 +472,7 @@ main_menu(){
 
 singleplayer_game() {
     game_mode="singleplayer"
+    symbol_chooser
     while [[ $game_status == "running" ]]; do
         if [[ $current_player -eq 1 ]]; then
             player_move "$current_player"
@@ -419,9 +493,9 @@ singleplayer_game() {
     main_menu
 }
 
-
 multiplayer_game() {
     game_mode="multiplayer"
+    symbol_chooser
     while [[ $game_status == "running" ]]; do
         player_move "$current_player"
         if [[ $game_status != "running" ]]; then
