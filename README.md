@@ -17,9 +17,9 @@ A classic Tic Tac Toe game implemented in Bash script with singleplayer vs AI an
 git clone [https://github.com/AdrianDajakaj/bash-tic-tac-toe.git]
 
 2. Make the script executable: 
-
+```bash
 chmod +x tictactoe.sh
 
 3. Run the game:
-
+```bash
 ./tictactoe.sh
